@@ -2,26 +2,28 @@ package main
 
 import (
 	"fmt"
-	"wallet"
+	"gochain/block"
+	"gochain/wallet"
 )
 
 func main() {
-	// myBlockchainAddress := "my_blockchain_address"
-	// blockChain := NewBlockchain(myBlockchainAddress)
+	walletM := wallet.NewWallet()
+	walletA := wallet.NewWallet()
+	walletB := wallet.NewWallet()
 
-	// blockChain.AddTransaction("Ren", "Nol", 2.0)
-	// blockChain.Mining()
+	// Wallet
+	t := wallet.NewTransaction(walletA.PrivateKey(), walletA.PublicKey(), walletA.BlockchainAddress(), walletB.BlockchainAddress(), 1.0)
 
-	// blockChain.AddTransaction("Nol", "Ren", 8.0)
-	// blockChain.AddTransaction("Nol", "Ren", 4.0)
-	// blockChain.Mining()
-	// blockChain.Print()
+	// Blockchain
+	blockchain := block.NewBlockchain(walletM.BlockchainAddress())
+	isAdded := blockchain.AddTransaction(walletA.BlockchainAddress(), walletB.BlockchainAddress(), 1.0, walletA.PublicKey(), t.GenerateSignature())
+	fmt.Println("Added ? ", isAdded)
 
-	// fmt.Printf("Ren %.1f\n", blockChain.CalculateTotalAmount("Ren"))
-	// fmt.Printf("Nol %.1f\n", blockChain.CalculateTotalAmount("Nol"))
-	// fmt.Printf("My Blockchain Address %.1f\n", blockChain.CalculateTotalAmount("my_blockchain_address"))
+	// Mining Person
+	blockchain.Mining()
+	blockchain.Print()
 
-	w := wallet.NewWallet()
-	fmt.Println(w.PrivateKeyStr())
-	fmt.Println(w.PublicKeyStr())
+	fmt.Printf("A %.1f\n", blockchain.CalculateTotalAmount(walletA.BlockchainAddress()))
+	fmt.Printf("B %.1f\n", blockchain.CalculateTotalAmount(walletB.BlockchainAddress()))
+	fmt.Printf("M %.1f\n", blockchain.CalculateTotalAmount(walletM.BlockchainAddress()))
 }
