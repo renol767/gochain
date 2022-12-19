@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"gochain/block"
+	"gochain/utils"
 	"gochain/wallet"
 	"io"
 	"log"
@@ -51,7 +53,59 @@ func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) 
 	io.WriteString(w, "Hello World")
 }
 
+func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		w.Header().Add("Content-Type", "application/json")
+		bc := bcs.GetBlockchain()
+		transactions := bc.TransactionPool()
+		m, _ := json.Marshal(struct {
+			Transaction []*block.Transaction `json:"transactions"`
+			Length      int                  `json:"length"`
+		}{
+			Transaction: transactions,
+			Length:      len(transactions),
+		})
+		io.WriteString(w, string(m[:]))
+	case http.MethodPost:
+		decoder := json.NewDecoder(req.Body)
+		var t block.TransactionRequest
+		err := decoder.Decode(&t)
+		if err != nil {
+			log.Printf("ERROR %w", err)
+			io.WriteString(w, string(utils.JsonStatus("fail")))
+			return
+		}
+		if !t.Validate() {
+			log.Println("ERROR: missing field(s)")
+			io.WriteString(w, string(utils.JsonStatus("fail")))
+			return
+		}
+
+		publicKey := utils.PublicKeyFromString(*t.SenderPublicKey)
+		signature := utils.SignatureFromString(*t.Signature)
+		bc := bcs.GetBlockchain()
+		isCreated := bc.CreateTransaction(*t.SenderBlockchainAddress, *t.RecipientBlockchainAdress, *t.Value, publicKey, signature)
+
+		w.Header().Add("Content-Type", "application/json")
+		var m []byte
+		if !isCreated {
+			w.WriteHeader(http.StatusBadGateway)
+			m = utils.JsonStatus("fail")
+		} else {
+			w.WriteHeader(http.StatusCreated)
+			m = utils.JsonStatus("success")
+		}
+		io.WriteString(w, string(m))
+
+	default:
+		log.Panicln("ERROR : invalid HTTP Request")
+		w.WriteHeader(http.StatusBadRequest)
+	}
+}
+
 func (bcs *BlockchainServer) Run() {
 	http.HandleFunc("/", bcs.GetChain)
+	http.HandleFunc("/transactions", bcs.Trancsaction)
 	log.Fatal(http.ListenAndServe("localhost:"+strconv.Itoa(int(bcs.Port())), nil))
 }

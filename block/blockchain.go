@@ -77,6 +77,10 @@ func NewBlockchain(blockchainAddress string, port uint16) *Blockchain {
 	return bc
 }
 
+func (bc *Blockchain) TransactionPool() []*Transaction{
+	return bc.transactionPool
+}
+
 func (bc *Blockchain) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Blocks []*Block `"json: chains"`
@@ -104,8 +108,14 @@ func (bc *Blockchain) LastBlock() *Block {
 	return bc.chain[len(bc.chain)-1]
 }
 
-func (bc *Blockchain) AddTransaction(sender string, recipent string, value float32, senderPubicKey *ecdsa.PublicKey, s *utils.Signature) bool {
-	t := NewTransaction(sender, recipent, value)
+func (bc *Blockchain) CreateTransaction(sender string, recipient string, value float32, senderPubicKey *ecdsa.PublicKey, s *utils.Signature) bool {
+	isTransacted := bc.AddTransaction(sender, recipient, value, senderPubicKey, s)
+
+	return isTransacted
+}
+
+func (bc *Blockchain) AddTransaction(sender string, recipient string, value float32, senderPubicKey *ecdsa.PublicKey, s *utils.Signature) bool {
+	t := NewTransaction(sender, recipient, value)
 
 	if sender == MINING_SENDER {
 		bc.transactionPool = append(bc.transactionPool, t)
@@ -192,8 +202,8 @@ type Transaction struct {
 	value                      float32
 }
 
-func NewTransaction(sender string, recipent string, value float32) *Transaction {
-	return &Transaction{sender, recipent, value}
+func NewTransaction(sender string, recipient string, value float32) *Transaction {
+	return &Transaction{sender, recipient, value}
 }
 
 func (t *Transaction) Print() {
@@ -213,4 +223,19 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		Recipient: t.recipientBlockchainAddress,
 		Value:     t.value,
 	})
+}
+
+type TransactionRequest struct {
+	SenderBlockchainAddress   *string  `json:"sender_blockchain_address"`
+	RecipientBlockchainAdress *string  `json:"recipient_blockchain_address"`
+	SenderPublicKey           *string  `json:"sender_public_key"`
+	Value                     *float32 `json:"value"`
+	Signature                 *string  `json:"signature"`
+}
+
+func (tr *TransactionRequest) Validate() bool {
+	if tr.SenderBlockchainAddress == nil || tr.RecipientBlockchainAdress == nil || tr.SenderPublicKey == nil || tr.Value == nil || tr.Signature == nil {
+		return false
+	}
+	return true
 }
