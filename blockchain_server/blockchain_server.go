@@ -97,7 +97,39 @@ func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Reque
 			m = utils.JsonStatus("success")
 		}
 		io.WriteString(w, string(m))
+	case http.MethodPut:
+		decoder := json.NewDecoder(req.Body)
+		var t block.TransactionRequest
+		err := decoder.Decode(&t)
+		if err != nil {
+			log.Print("ERROR %w", err)
+			io.WriteString(w, string(utils.JsonStatus("fail")))
+			return
+		}
+		if !t.Validate() {
+			log.Println("ERROR: missing field(s)")
+			io.WriteString(w, string(utils.JsonStatus("fail")))
+			return
+		}
 
+		publicKey := utils.PublicKeyFromString(*t.SenderPublicKey)
+		signature := utils.SignatureFromString(*t.Signature)
+		bc := bcs.GetBlockchain()
+		isUpdated := bc.AddTransaction(*t.SenderBlockchainAddress, *t.RecipientBlockchainAdress, *t.Value, publicKey, signature)
+
+		w.Header().Add("Content-Type", "application/json")
+		var m []byte
+		if !isUpdated {
+			w.WriteHeader(http.StatusBadGateway)
+			m = utils.JsonStatus("fail")
+		} else {
+			m = utils.JsonStatus("success")
+		}
+		io.WriteString(w, string(m))
+	case http.MethodDelete:
+		bc := bcs.GetBlockchain()
+		bc.ClearTransactionPool()
+		io.WriteString(w, string(utils.JsonStatus("success")))
 	default:
 		log.Panicln("ERROR : invalid HTTP Request")
 		w.WriteHeader(http.StatusBadRequest)
@@ -158,7 +190,9 @@ func (bcs *BlockchainServer) Amount(w http.ResponseWriter, req *http.Request) {
 }
 
 func (bcs *BlockchainServer) Run() {
+	bcs.GetBlockchain().Run()
 	http.HandleFunc("/", bcs.GetChain)
+	http.HandleFunc("/amount", bcs.Amount)
 	http.HandleFunc("/transactions", bcs.Trancsaction)
 	http.HandleFunc("/mine", bcs.Mine)
 	http.HandleFunc("/mine/start", bcs.StartMine)
