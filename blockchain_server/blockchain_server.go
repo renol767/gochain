@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"gochain/block"
-	"gochain/utils"
-	"gochain/wallet"
+	"goblockchain/block"
+	"goblockchain/utils"
+	"goblockchain/wallet"
 	"io"
 	"log"
 	"net/http"
@@ -35,7 +35,6 @@ func (bcs *BlockchainServer) GetBlockchain() *block.Blockchain {
 		log.Printf("publick_key %v", minersWallet.PublicKeyStr())
 		log.Printf("blockchain_address %v", minersWallet.BlockchainAddress())
 	}
-
 	return bc
 }
 
@@ -50,29 +49,29 @@ func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) 
 		log.Printf("ERROR: Invalid HTTP Method")
 
 	}
-	io.WriteString(w, "Hello World")
 }
 
-func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Request) {
+func (bcs *BlockchainServer) Transactions(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 		w.Header().Add("Content-Type", "application/json")
 		bc := bcs.GetBlockchain()
 		transactions := bc.TransactionPool()
 		m, _ := json.Marshal(struct {
-			Transaction []*block.Transaction `json:"transactions"`
-			Length      int                  `json:"length"`
+			Transactions []*block.Transaction `json:"transactions"`
+			Length       int                  `json:"length"`
 		}{
-			Transaction: transactions,
-			Length:      len(transactions),
+			Transactions: transactions,
+			Length:       len(transactions),
 		})
 		io.WriteString(w, string(m[:]))
+
 	case http.MethodPost:
 		decoder := json.NewDecoder(req.Body)
 		var t block.TransactionRequest
 		err := decoder.Decode(&t)
 		if err != nil {
-			log.Print("ERROR %w", err)
+			log.Printf("ERROR: %v", err)
 			io.WriteString(w, string(utils.JsonStatus("fail")))
 			return
 		}
@@ -81,16 +80,16 @@ func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Reque
 			io.WriteString(w, string(utils.JsonStatus("fail")))
 			return
 		}
-
 		publicKey := utils.PublicKeyFromString(*t.SenderPublicKey)
 		signature := utils.SignatureFromString(*t.Signature)
 		bc := bcs.GetBlockchain()
-		isCreated := bc.CreateTransaction(*t.SenderBlockchainAddress, *t.RecipientBlockchainAdress, *t.Value, publicKey, signature)
+		isCreated := bc.CreateTransaction(*t.SenderBlockchainAddress,
+			*t.RecipientBlockchainAddress, *t.Value, publicKey, signature)
 
 		w.Header().Add("Content-Type", "application/json")
 		var m []byte
 		if !isCreated {
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusBadRequest)
 			m = utils.JsonStatus("fail")
 		} else {
 			w.WriteHeader(http.StatusCreated)
@@ -102,7 +101,7 @@ func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Reque
 		var t block.TransactionRequest
 		err := decoder.Decode(&t)
 		if err != nil {
-			log.Print("ERROR %w", err)
+			log.Printf("ERROR: %v", err)
 			io.WriteString(w, string(utils.JsonStatus("fail")))
 			return
 		}
@@ -111,16 +110,16 @@ func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Reque
 			io.WriteString(w, string(utils.JsonStatus("fail")))
 			return
 		}
-
 		publicKey := utils.PublicKeyFromString(*t.SenderPublicKey)
 		signature := utils.SignatureFromString(*t.Signature)
 		bc := bcs.GetBlockchain()
-		isUpdated := bc.AddTransaction(*t.SenderBlockchainAddress, *t.RecipientBlockchainAdress, *t.Value, publicKey, signature)
+		isUpdated := bc.AddTransaction(*t.SenderBlockchainAddress,
+			*t.RecipientBlockchainAddress, *t.Value, publicKey, signature)
 
 		w.Header().Add("Content-Type", "application/json")
 		var m []byte
 		if !isUpdated {
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusBadRequest)
 			m = utils.JsonStatus("fail")
 		} else {
 			m = utils.JsonStatus("success")
@@ -131,7 +130,7 @@ func (bcs *BlockchainServer) Trancsaction(w http.ResponseWriter, req *http.Reque
 		bc.ClearTransactionPool()
 		io.WriteString(w, string(utils.JsonStatus("success")))
 	default:
-		log.Panicln("ERROR : invalid HTTP Request")
+		log.Println("ERROR: Invalid HTTP Method")
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
@@ -152,9 +151,8 @@ func (bcs *BlockchainServer) Mine(w http.ResponseWriter, req *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		io.WriteString(w, string(m))
 	default:
-		log.Println("ERROR : Invalid HTTP Method")
+		log.Println("ERROR: Invalid HTTP Method")
 		w.WriteHeader(http.StatusBadRequest)
-
 	}
 }
 
@@ -163,38 +161,41 @@ func (bcs *BlockchainServer) StartMine(w http.ResponseWriter, req *http.Request)
 	case http.MethodGet:
 		bc := bcs.GetBlockchain()
 		bc.StartMining()
+
 		m := utils.JsonStatus("success")
 		w.Header().Add("Content-Type", "application/json")
 		io.WriteString(w, string(m))
 	default:
-		log.Println("ERROR : Invalid HTTP Method")
+		log.Println("ERROR: Invalid HTTP Method")
 		w.WriteHeader(http.StatusBadRequest)
-
 	}
 }
 
 func (bcs *BlockchainServer) Amount(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
-		blockchain_addr := req.URL.Query().Get("blockchain_address")
-		amount := bcs.GetBlockchain().CalculateTotalAmount(blockchain_addr)
-		ar := &block.AmountResponse{Amount: amount}
+		blockchainAddress := req.URL.Query().Get("blockchain_address")
+		amount := bcs.GetBlockchain().CalculateTotalAmount(blockchainAddress)
+
+		ar := &block.AmountResponse{amount}
 		m, _ := ar.MarshalJSON()
 
 		w.Header().Add("Content-Type", "application/json")
-		io.WriteString(w, string(m))
+		io.WriteString(w, string(m[:]))
+
 	default:
-		log.Println("ERROR : Invalid HTTP Method")
+		log.Printf("ERROR: Invalid HTTP Method")
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
 func (bcs *BlockchainServer) Run() {
 	bcs.GetBlockchain().Run()
+
 	http.HandleFunc("/", bcs.GetChain)
-	http.HandleFunc("/amount", bcs.Amount)
-	http.HandleFunc("/transactions", bcs.Trancsaction)
+	http.HandleFunc("/transactions", bcs.Transactions)
 	http.HandleFunc("/mine", bcs.Mine)
 	http.HandleFunc("/mine/start", bcs.StartMine)
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+strconv.Itoa(int(bcs.Port())), nil))
+	http.HandleFunc("/amount", bcs.Amount)
+	log.Fatal(http.ListenAndServe("0.0.0.0:"+strconv.Itoa(int(bcs.Port())), nil))
 }

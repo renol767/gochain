@@ -1,4 +1,4 @@
-module gochain
+module goblockchain
 
 go 1.18
 
