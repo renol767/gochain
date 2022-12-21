@@ -52,7 +52,7 @@ func (b *Block) Nonce() int {
 	return b.nonce
 }
 
-func (b *Block) Transaction() []*Transaction {
+func (b *Block) Transactions() []*Transaction {
 	return b.transactions
 }
 
@@ -97,15 +97,12 @@ func (b *Block) UnmarshalJSON(data []byte) error {
 		PreviousHash: &previousHash,
 		Transactions: &b.transactions,
 	}
-
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
-
 	ph, _ := hex.DecodeString(*v.PreviousHash)
 	copy(b.previousHash[:], ph[:32])
 	return nil
-
 }
 
 type Blockchain struct {
@@ -166,7 +163,7 @@ func (bc *Blockchain) ClearTransactionPool() {
 
 func (bc *Blockchain) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Blocks []*Block `json:"chains"`
+		Blocks []*Block `json:"chain"`
 	}{
 		Blocks: bc.chain,
 	})
@@ -174,7 +171,7 @@ func (bc *Blockchain) MarshalJSON() ([]byte, error) {
 
 func (bc *Blockchain) UnmarshalJSON(data []byte) error {
 	v := &struct {
-		Blocks *[]*Block `json:"chains"`
+		Blocks *[]*Block `json:"chain"`
 	}{
 		Blocks: &bc.chain,
 	}
@@ -316,6 +313,7 @@ func (bc *Blockchain) Mining() bool {
 		resp, _ := client.Do(req)
 		log.Printf("%v", resp)
 	}
+
 	return true
 }
 
@@ -350,7 +348,7 @@ func (bc *Blockchain) ValidChain(chain []*Block) bool {
 			return false
 		}
 
-		if !bc.ValidProof(b.Nonce(), b.PreviousHash(), b.Transaction(), MINING_DIFFICULTY) {
+		if !bc.ValidProof(b.Nonce(), b.PreviousHash(), b.Transactions(), MINING_DIFFICULTY) {
 			return false
 		}
 
@@ -380,12 +378,13 @@ func (bc *Blockchain) ResolveConflicts() bool {
 			}
 		}
 	}
+
 	if longestChain != nil {
 		bc.chain = longestChain
-		log.Printf("Resolve Conflicts replaced")
+		log.Printf("Resovle confilicts replaced")
 		return true
 	}
-	log.Printf("Resolve conflicts not replaced")
+	log.Printf("Resovle conflicts not replaced")
 	return false
 }
 
@@ -420,15 +419,14 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 
 func (t *Transaction) UnmarshalJSON(data []byte) error {
 	v := &struct {
-		Sender    string  `json:"sender_blockchain_address"`
-		Recipient string  `json:"recipient_blockchain_address"`
-		Value     float32 `json:"value"`
+		Sender    *string  `json:"sender_blockchain_address"`
+		Recipient *string  `json:"recipient_blockchain_address"`
+		Value     *float32 `json:"value"`
 	}{
-		Sender:    t.senderBlockchainAddress,
-		Recipient: t.recipientBlockchainAddress,
-		Value:     t.value,
+		Sender:    &t.senderBlockchainAddress,
+		Recipient: &t.recipientBlockchainAddress,
+		Value:     &t.value,
 	}
-
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
